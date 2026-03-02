@@ -1,0 +1,182 @@
+import { z } from "zod";
+import { BrowserManager } from "../../playwright/browserManager";
+import { AppError } from "../../shared/errors";
+
+export interface ToolDefinition {
+  name: string;
+  description: string;
+  inputSchema: Record<string, unknown>;
+  execute: (argumentsValue: unknown) => Promise<unknown>;
+}
+
+export const createTools = (browserManager: BrowserManager): ToolDefinition[] => {
+  const newSessionInput = z.object({}).strict();
+  const navigateInput = z.object({
+    sessionId: z.string().min(1),
+    url: z.string().min(1)
+  });
+  const screenshotInput = z.object({
+    sessionId: z.string().min(1),
+    fullPage: z.boolean().optional()
+  });
+  const clickInput = z.object({
+    sessionId: z.string().min(1),
+    selector: z.string().min(1),
+    timeoutMs: z.number().int().positive().optional()
+  });
+  const fillInput = z.object({
+    sessionId: z.string().min(1),
+    selector: z.string().min(1),
+    value: z.string(),
+    timeoutMs: z.number().int().positive().optional()
+  });
+  const queryTextInput = z.object({
+    sessionId: z.string().min(1),
+    selector: z.string().min(1),
+    timeoutMs: z.number().int().positive().optional()
+  });
+  const evaluateInput = z.object({
+    sessionId: z.string().min(1),
+    expression: z.string().min(1)
+  });
+  const waitForInput = z.object({
+    sessionId: z.string().min(1),
+    selector: z.string().min(1),
+    timeoutMs: z.number().int().positive().optional(),
+    state: z.enum(["attached", "detached", "visible", "hidden"]).optional()
+  });
+  const pressInput = z.object({
+    sessionId: z.string().min(1),
+    selector: z.string().min(1),
+    key: z.string().min(1),
+    timeoutMs: z.number().int().positive().optional()
+  });
+  const closeSessionInput = z.object({
+    sessionId: z.string().min(1)
+  });
+
+  return [
+    {
+      name: "browser.newSession",
+      description: "Create a new isolated Playwright browser session",
+      inputSchema: z.toJSONSchema(newSessionInput),
+      execute: async (argumentsValue) => {
+        newSessionInput.parse(argumentsValue ?? {});
+        return browserManager.createSession();
+      }
+    },
+    {
+      name: "browser.navigate",
+      description: "Navigate current session page to a target URL",
+      inputSchema: z.toJSONSchema(navigateInput),
+      execute: async (argumentsValue) => {
+        const args = navigateInput.parse(argumentsValue ?? {});
+        return browserManager.navigate(args.sessionId, args.url);
+      }
+    },
+    {
+      name: "browser.screenshot",
+      description: "Take screenshot of current session page and return base64 PNG",
+      inputSchema: z.toJSONSchema(screenshotInput),
+      execute: async (argumentsValue) => {
+        const args = screenshotInput.parse(argumentsValue ?? {});
+        return browserManager.screenshot(args.sessionId, args.fullPage ?? false);
+      }
+    },
+    {
+      name: "browser.click",
+      description: "Click an element on the current page by CSS selector",
+      inputSchema: z.toJSONSchema(clickInput),
+      execute: async (argumentsValue) => {
+        const args = clickInput.parse(argumentsValue ?? {});
+        return browserManager.click(args.sessionId, args.selector, args.timeoutMs);
+      }
+    },
+    {
+      name: "browser.fill",
+      description: "Fill an input/textarea element by CSS selector",
+      inputSchema: z.toJSONSchema(fillInput),
+      execute: async (argumentsValue) => {
+        const args = fillInput.parse(argumentsValue ?? {});
+        return browserManager.fill(args.sessionId, args.selector, args.value, args.timeoutMs);
+      }
+    },
+    {
+      name: "dom.queryText",
+      description: "Read text content of an element by CSS selector",
+      inputSchema: z.toJSONSchema(queryTextInput),
+      execute: async (argumentsValue) => {
+        const args = queryTextInput.parse(argumentsValue ?? {});
+        return browserManager.queryText(args.sessionId, args.selector, args.timeoutMs);
+      }
+    },
+    {
+      name: "browser.evaluate",
+      description: "Evaluate a JavaScript expression in page context",
+      inputSchema: z.toJSONSchema(evaluateInput),
+      execute: async (argumentsValue) => {
+        const args = evaluateInput.parse(argumentsValue ?? {});
+        return browserManager.evaluate(args.sessionId, args.expression);
+      }
+    },
+    {
+      name: "browser.waitFor",
+      description: "Wait for a selector to reach target state",
+      inputSchema: z.toJSONSchema(waitForInput),
+      execute: async (argumentsValue) => {
+        const args = waitForInput.parse(argumentsValue ?? {});
+        return browserManager.waitFor(
+          args.sessionId,
+          args.selector,
+          args.timeoutMs,
+          args.state
+        );
+      }
+    },
+    {
+      name: "browser.press",
+      description: "Focus selector and press a keyboard key",
+      inputSchema: z.toJSONSchema(pressInput),
+      execute: async (argumentsValue) => {
+        const args = pressInput.parse(argumentsValue ?? {});
+        return browserManager.press(args.sessionId, args.selector, args.key, args.timeoutMs);
+      }
+    },
+    {
+      name: "browser.closeSession",
+      description: "Close and cleanup a Playwright session",
+      inputSchema: z.toJSONSchema(closeSessionInput),
+      execute: async (argumentsValue) => {
+        const args = closeSessionInput.parse(argumentsValue ?? {});
+        await browserManager.closeSession(args.sessionId);
+        return { closed: true };
+      }
+    }
+  ];
+};
+
+export class ToolRegistry {
+  private readonly tools: ToolDefinition[];
+
+  constructor(tools: ToolDefinition[]) {
+    this.tools = tools;
+  }
+
+  list(): Array<Pick<ToolDefinition, "name" | "description" | "inputSchema">> {
+    return this.tools.map((tool) => ({
+      name: tool.name,
+      description: tool.description,
+      inputSchema: tool.inputSchema
+    }));
+  }
+
+  async call(name: string, argumentsValue: unknown): Promise<unknown> {
+    const target = this.tools.find((tool) => tool.name === name);
+
+    if (!target) {
+      throw new AppError(`Tool not found: ${name}`, "TOOL_NOT_FOUND", 404);
+    }
+
+    return target.execute(argumentsValue);
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "servers": {
+    "playwright-mcp-http-proxy": {
+      "type": "stdio",
+      "command": "node",
+      "cwd": "${workspaceFolder}",
+      "args": [
+        "dist/proxy/mcpStdioHttpProxy.js"
+      ],
+      "env": {
+        "MCP_HTTP_URL": "http://localhost:3000/mcp",
+        "MCP_PROXY_TIMEOUT_MS": "5000"
+      }
+    }
+  }
+}

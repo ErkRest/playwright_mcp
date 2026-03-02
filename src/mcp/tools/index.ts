@@ -13,7 +13,9 @@ export const createTools = (browserManager: BrowserManager): ToolDefinition[] =>
   const newSessionInput = z.object({}).strict();
   const navigateInput = z.object({
     sessionId: z.string().min(1),
-    url: z.string().min(1)
+    url: z.string().min(1),
+    waitUntil: z.enum(["domcontentloaded", "load", "networkidle", "commit"]).optional(),
+    timeoutMs: z.number().int().positive().optional()
   });
   const screenshotInput = z.object({
     sessionId: z.string().min(1),
@@ -35,6 +37,12 @@ export const createTools = (browserManager: BrowserManager): ToolDefinition[] =>
     selector: z.string().min(1),
     timeoutMs: z.number().int().positive().optional()
   });
+  const frameQueryTextInput = z.object({
+    sessionId: z.string().min(1),
+    frameName: z.string().min(1),
+    selector: z.string().min(1),
+    timeoutMs: z.number().int().positive().optional()
+  });
   const evaluateInput = z.object({
     sessionId: z.string().min(1),
     expression: z.string().min(1)
@@ -51,13 +59,19 @@ export const createTools = (browserManager: BrowserManager): ToolDefinition[] =>
     key: z.string().min(1),
     timeoutMs: z.number().int().positive().optional()
   });
+  const frameClickInput = z.object({
+    sessionId: z.string().min(1),
+    frameName: z.string().min(1),
+    selector: z.string().min(1),
+    timeoutMs: z.number().int().positive().optional()
+  });
   const closeSessionInput = z.object({
     sessionId: z.string().min(1)
   });
 
   return [
     {
-      name: "browser.newSession",
+      name: "browser_new_session",
       description: "Create a new isolated Playwright browser session",
       inputSchema: z.toJSONSchema(newSessionInput),
       execute: async (argumentsValue) => {
@@ -66,16 +80,16 @@ export const createTools = (browserManager: BrowserManager): ToolDefinition[] =>
       }
     },
     {
-      name: "browser.navigate",
+      name: "browser_navigate",
       description: "Navigate current session page to a target URL",
       inputSchema: z.toJSONSchema(navigateInput),
       execute: async (argumentsValue) => {
         const args = navigateInput.parse(argumentsValue ?? {});
-        return browserManager.navigate(args.sessionId, args.url);
+        return browserManager.navigate(args.sessionId, args.url, args.waitUntil, args.timeoutMs);
       }
     },
     {
-      name: "browser.screenshot",
+      name: "browser_screenshot",
       description: "Take screenshot of current session page and return base64 PNG",
       inputSchema: z.toJSONSchema(screenshotInput),
       execute: async (argumentsValue) => {
@@ -84,7 +98,7 @@ export const createTools = (browserManager: BrowserManager): ToolDefinition[] =>
       }
     },
     {
-      name: "browser.click",
+      name: "browser_click",
       description: "Click an element on the current page by CSS selector",
       inputSchema: z.toJSONSchema(clickInput),
       execute: async (argumentsValue) => {
@@ -93,7 +107,7 @@ export const createTools = (browserManager: BrowserManager): ToolDefinition[] =>
       }
     },
     {
-      name: "browser.fill",
+      name: "browser_fill",
       description: "Fill an input/textarea element by CSS selector",
       inputSchema: z.toJSONSchema(fillInput),
       execute: async (argumentsValue) => {
@@ -102,7 +116,7 @@ export const createTools = (browserManager: BrowserManager): ToolDefinition[] =>
       }
     },
     {
-      name: "dom.queryText",
+      name: "dom_query_text",
       description: "Read text content of an element by CSS selector",
       inputSchema: z.toJSONSchema(queryTextInput),
       execute: async (argumentsValue) => {
@@ -111,7 +125,21 @@ export const createTools = (browserManager: BrowserManager): ToolDefinition[] =>
       }
     },
     {
-      name: "browser.evaluate",
+      name: "frame_query_text",
+      description: "Read text content inside target frame by CSS selector",
+      inputSchema: z.toJSONSchema(frameQueryTextInput),
+      execute: async (argumentsValue) => {
+        const args = frameQueryTextInput.parse(argumentsValue ?? {});
+        return browserManager.frameQueryText(
+          args.sessionId,
+          args.frameName,
+          args.selector,
+          args.timeoutMs
+        );
+      }
+    },
+    {
+      name: "browser_evaluate",
       description: "Evaluate a JavaScript expression in page context",
       inputSchema: z.toJSONSchema(evaluateInput),
       execute: async (argumentsValue) => {
@@ -120,7 +148,7 @@ export const createTools = (browserManager: BrowserManager): ToolDefinition[] =>
       }
     },
     {
-      name: "browser.waitFor",
+      name: "browser_wait_for",
       description: "Wait for a selector to reach target state",
       inputSchema: z.toJSONSchema(waitForInput),
       execute: async (argumentsValue) => {
@@ -134,7 +162,7 @@ export const createTools = (browserManager: BrowserManager): ToolDefinition[] =>
       }
     },
     {
-      name: "browser.press",
+      name: "browser_press",
       description: "Focus selector and press a keyboard key",
       inputSchema: z.toJSONSchema(pressInput),
       execute: async (argumentsValue) => {
@@ -143,7 +171,21 @@ export const createTools = (browserManager: BrowserManager): ToolDefinition[] =>
       }
     },
     {
-      name: "browser.closeSession",
+      name: "frame_click",
+      description: "Click an element inside target frame by CSS selector",
+      inputSchema: z.toJSONSchema(frameClickInput),
+      execute: async (argumentsValue) => {
+        const args = frameClickInput.parse(argumentsValue ?? {});
+        return browserManager.frameClick(
+          args.sessionId,
+          args.frameName,
+          args.selector,
+          args.timeoutMs
+        );
+      }
+    },
+    {
+      name: "browser_close_session",
       description: "Close and cleanup a Playwright session",
       inputSchema: z.toJSONSchema(closeSessionInput),
       execute: async (argumentsValue) => {

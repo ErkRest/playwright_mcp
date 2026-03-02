@@ -8,6 +8,8 @@ interface SessionRuntime {
   page: Page;
 }
 
+type NavigateWaitUntil = "domcontentloaded" | "load" | "networkidle" | "commit";
+
 const ensureAllowedUrl = (url: string): void => {
   let target: URL;
 
@@ -66,7 +68,12 @@ export class BrowserManager {
     return { sessionId: session.id };
   }
 
-  async navigate(sessionId: string, url: string): Promise<{ url: string; title: string }> {
+  async navigate(
+    sessionId: string,
+    url: string,
+    waitUntil: NavigateWaitUntil = "domcontentloaded",
+    timeoutMs = 30_000
+  ): Promise<{ url: string; title: string }> {
     this.collectExpiredSessions().catch(() => undefined);
     ensureAllowedUrl(url);
 
@@ -76,8 +83,8 @@ export class BrowserManager {
     }
 
     await target.page.goto(url, {
-      waitUntil: "domcontentloaded",
-      timeout: 30_000
+      waitUntil,
+      timeout: timeoutMs
     });
 
     this.sessions.touch(sessionId);
@@ -171,6 +178,31 @@ export class BrowserManager {
     return { selector, text };
   }
 
+  async frameQueryText(
+    sessionId: string,
+    frameName: string,
+    selector: string,
+    timeoutMs = 30_000
+  ): Promise<{ frameName: string; selector: string; text: string | null }> {
+    this.collectExpiredSessions().catch(() => undefined);
+
+    const target = this.runtime.get(sessionId);
+    if (!target) {
+      throw new AppError("Session not found", "SESSION_NOT_FOUND", 404);
+    }
+
+    const frame = target.page.frame({ name: frameName });
+    if (!frame) {
+      throw new AppError("Frame not found", "FRAME_NOT_FOUND", 404, { frameName });
+    }
+
+    await frame.waitForSelector(selector, { timeout: timeoutMs });
+    const text = await frame.textContent(selector, { timeout: timeoutMs });
+    this.sessions.touch(sessionId);
+
+    return { frameName, selector, text };
+  }
+
   async evaluate(
     sessionId: string,
     expression: string
@@ -229,6 +261,31 @@ export class BrowserManager {
     this.sessions.touch(sessionId);
 
     return { pressed: true, selector, key };
+  }
+
+  async frameClick(
+    sessionId: string,
+    frameName: string,
+    selector: string,
+    timeoutMs = 30_000
+  ): Promise<{ clicked: true; frameName: string; selector: string }> {
+    this.collectExpiredSessions().catch(() => undefined);
+
+    const target = this.runtime.get(sessionId);
+    if (!target) {
+      throw new AppError("Session not found", "SESSION_NOT_FOUND", 404);
+    }
+
+    const frame = target.page.frame({ name: frameName });
+    if (!frame) {
+      throw new AppError("Frame not found", "FRAME_NOT_FOUND", 404, { frameName });
+    }
+
+    await frame.waitForSelector(selector, { timeout: timeoutMs, state: "visible" });
+    await frame.click(selector, { timeout: timeoutMs });
+    this.sessions.touch(sessionId);
+
+    return { clicked: true, frameName, selector };
   }
 
   async closeSession(sessionId: string): Promise<void> {

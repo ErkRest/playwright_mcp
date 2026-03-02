@@ -4,8 +4,10 @@
   "main": "dist/app.js",
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/app.ts",
+    "proxy:dev": "ts-node-dev --respawn --transpile-only src/proxy/mcpStdioHttpProxy.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/app.js",
+    "proxy": "node dist/proxy/mcpStdioHttpProxy.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "smoke": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\examples\\smoke-test.ps1"
   },

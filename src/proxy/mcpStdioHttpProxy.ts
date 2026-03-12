@@ -1,3 +1,4 @@
+import "dotenv/config";
 import { Buffer } from "node:buffer";
 
 const targetUrl = process.env.MCP_HTTP_URL ?? "http://localhost:3000/mcp";

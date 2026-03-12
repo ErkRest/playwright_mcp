@@ -84,6 +84,15 @@ npm run dev
 - `ALLOWED_HOSTS`：允許的網域清單（逗號分隔，例如 `example.com,docs.example.com`）
 - `SESSION_TTL_MS`：閒置 session 清理時間（預設 15 分鐘）
 
+可參考 `/.env.example` 建立你自己的設定。
+
+PowerShell 臨時設定範例：
+
+```powershell
+$env:PLAYWRIGHT_HEADLESS="false"
+npm run dev
+```
+
 ## 安全預設
 
 - 僅允許 `http/https`

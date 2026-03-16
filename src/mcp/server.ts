@@ -38,6 +38,10 @@ export class McpServer {
           }
         };
 
+      case "notifications/initialized":
+        // 支援 notifications/initialized，回傳空物件
+        return {};
+
       case "tools/list":
         return {
           tools: this.toolRegistry.list()

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { config } from "../../config";
 import { BrowserManager } from "../../playwright/browserManager";
 import { AppError } from "../../shared/errors";
 
@@ -90,20 +91,19 @@ export const createTools = (browserManager: BrowserManager): ToolDefinition[] =>
     },
     {
       name: "browser_screenshot",
-      description: "Take screenshot of current session page and return base64 PNG",
+      description: "Take screenshot of current session page and return a download URL",
       inputSchema: z.toJSONSchema(screenshotInput),
       execute: async (argumentsValue) => {
         const args = screenshotInput.parse(argumentsValue ?? {});
-        return browserManager.screenshot(args.sessionId, args.fullPage ?? false);
-      }
-    },
-    {
-      name: "browser_click",
-      description: "Click an element on the current page by CSS selector",
-      inputSchema: z.toJSONSchema(clickInput),
-      execute: async (argumentsValue) => {
-        const args = clickInput.parse(argumentsValue ?? {});
-        return browserManager.click(args.sessionId, args.selector, args.timeoutMs);
+        const shot = await browserManager.screenshot(args.sessionId, args.fullPage ?? false);
+        const downloadPath = `/mcp/screenshot/${shot.id}`;
+        return {
+          mimeType: shot.mimeType,
+          fileId: shot.id,
+          downloadPath,
+          downloadUrl: `${config.publicBaseUrl}${downloadPath}`,
+          expiresAt: new Date(shot.expiresAt).toISOString()
+        };
       }
     },
     {

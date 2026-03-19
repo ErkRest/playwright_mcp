@@ -30,6 +30,11 @@
 - `frame_query_text`
 - `frame_click`
 
+### `browser_screenshot` 參數
+
+- `sessionId`：必填
+- `fullPage`：可選（預設為 `false`，回傳下載路徑）
+
 ### `browser_navigate` 參數
 
 - `sessionId`：必填
@@ -46,6 +51,8 @@ npm run dev
 ```
 
 預設啟動位址：`http://localhost:3000/mcp`
+
+Screenshot 下載位址：`http://localhost:3000/mcp/screenshot/{fileId}`
 
 ## VS Code MCP（stdio 代理轉發）
 
@@ -83,6 +90,9 @@ npm run dev
 - `PLAYWRIGHT_HEADLESS`：`false` 可開啟有頭模式（預設 headless）
 - `ALLOWED_HOSTS`：允許的網域清單（逗號分隔，例如 `example.com,docs.example.com`）
 - `SESSION_TTL_MS`：閒置 session 清理時間（預設 15 分鐘）
+- `SCREENSHOT_TTL_MS`：screenshot 暫存清理時間（預設 15 分鐘）
+- `SCREENSHOT_DIR`：screenshot 暫存目錄（預設 `screenshots`）
+- `PUBLIC_BASE_URL`：screenshot 下載 URL base（預設 `http://localhost:{PORT}`）
 
 可參考 `/.env.example` 建立你自己的設定。
 

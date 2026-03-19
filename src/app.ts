@@ -15,7 +15,7 @@ const bootstrap = async (): Promise<void> => {
 
   const toolRegistry = new ToolRegistry(createTools(browserManager));
   const mcpServer = new McpServer(toolRegistry);
-  const router = createMcpHttpRouter(mcpServer);
+  const router = createMcpHttpRouter(mcpServer, browserManager);
 
   app.use(bodyParser({ enableTypes: ["json"] }));
   app.use(router.routes());

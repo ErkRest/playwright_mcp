@@ -1,3 +1,6 @@
+import { randomBytes } from "crypto";
+import { promises as fs } from "fs";
+import path from "path";
 import { Browser, BrowserContext, chromium, Page } from "playwright";
 import { config } from "../config";
 import { SessionStore } from "../domain/sessions/sessionStore";
@@ -6,6 +9,14 @@ import { AppError } from "../shared/errors";
 interface SessionRuntime {
   context: BrowserContext;
   page: Page;
+}
+
+interface ScreenshotEntry {
+  id: string;
+  filePath: string;
+  mimeType: string;
+  createdAt: number;
+  expiresAt: number;
 }
 
 type NavigateWaitUntil = "domcontentloaded" | "load" | "networkidle" | "commit";
@@ -39,6 +50,7 @@ export class BrowserManager {
   private browser: Browser | null = null;
   private readonly sessions = new SessionStore();
   private readonly runtime = new Map<string, SessionRuntime>();
+  private readonly screenshots = new Map<string, ScreenshotEntry>();
 
   async init(): Promise<void> {
     if (this.browser) {
@@ -98,7 +110,7 @@ export class BrowserManager {
   async screenshot(
     sessionId: string,
     fullPage = false
-  ): Promise<{ mimeType: string; data: string }> {
+  ): Promise<{ id: string; mimeType: string; filePath: string; expiresAt: number }> {
     this.collectExpiredSessions().catch(() => undefined);
 
     const target = this.runtime.get(sessionId);
@@ -112,12 +124,47 @@ export class BrowserManager {
       timeout: 30_000
     });
 
+    const directory = await this.ensureScreenshotDir();
+    const id = randomBytes(16).toString("hex");
+    const filePath = path.join(directory, `${id}.png`);
+    await fs.writeFile(filePath, buffer);
+
+    const now = Date.now();
+    const entry: ScreenshotEntry = {
+      id,
+      filePath,
+      mimeType: "image/png",
+      createdAt: now,
+      expiresAt: now + config.screenshotTtlMs
+    };
+    this.screenshots.set(id, entry);
+
     this.sessions.touch(sessionId);
+    await this.pruneExpiredScreenshots();
 
     return {
-      mimeType: "image/png",
-      data: buffer.toString("base64")
+      id: entry.id,
+      mimeType: entry.mimeType,
+      filePath: entry.filePath,
+      expiresAt: entry.expiresAt
     };
+  }
+
+  async getScreenshotFile(id: string): Promise<{ filePath: string; mimeType: string }> {
+    await this.pruneExpiredScreenshots();
+
+    const entry = this.screenshots.get(id);
+    if (!entry) {
+      throw new AppError("Screenshot not found", "SCREENSHOT_NOT_FOUND", 404);
+    }
+
+    if (Date.now() >= entry.expiresAt) {
+      await this.deleteScreenshot(entry);
+      this.screenshots.delete(id);
+      throw new AppError("Screenshot expired", "SCREENSHOT_EXPIRED", 404);
+    }
+
+    return { filePath: entry.filePath, mimeType: entry.mimeType };
   }
 
   async click(
@@ -313,9 +360,45 @@ export class BrowserManager {
       await this.closeSession(sessionId);
     }
 
+    await this.disposeScreenshots();
+
     if (this.browser) {
       await this.browser.close();
       this.browser = null;
     }
+  }
+
+  private async ensureScreenshotDir(): Promise<string> {
+    await fs.mkdir(config.screenshotDir, { recursive: true });
+    return config.screenshotDir;
+  }
+
+  private async pruneExpiredScreenshots(): Promise<void> {
+    const now = Date.now();
+    const expired = Array.from(this.screenshots.values()).filter(
+      (entry) => now >= entry.expiresAt
+    );
+    if (expired.length === 0) {
+      return;
+    }
+
+    await Promise.all(expired.map((entry) => this.deleteScreenshot(entry)));
+    for (const entry of expired) {
+      this.screenshots.delete(entry.id);
+    }
+  }
+
+  private async deleteScreenshot(entry: ScreenshotEntry): Promise<void> {
+    try {
+      await fs.unlink(entry.filePath);
+    } catch {
+      // Ignore missing files; metadata will be cleared by caller.
+    }
+  }
+
+  private async disposeScreenshots(): Promise<void> {
+    const entries = Array.from(this.screenshots.values());
+    await Promise.all(entries.map((entry) => this.deleteScreenshot(entry)));
+    this.screenshots.clear();
   }
 }

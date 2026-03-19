@@ -1,3 +1,4 @@
+import path from "path";
 import { z } from "zod";
 
 const configSchema = z.object({
@@ -7,7 +8,10 @@ const configSchema = z.object({
     .optional()
     .transform((value) => value !== "false"),
   ALLOWED_HOSTS: z.string().optional(),
-  SESSION_TTL_MS: z.coerce.number().int().positive().default(15 * 60 * 1000)
+  SESSION_TTL_MS: z.coerce.number().int().positive().default(15 * 60 * 1000),
+  SCREENSHOT_TTL_MS: z.coerce.number().int().positive().default(15 * 60 * 1000),
+  SCREENSHOT_DIR: z.string().optional().default("screenshots"),
+  PUBLIC_BASE_URL: z.string().optional()
 });
 
 const parsed = configSchema.parse(process.env);
@@ -20,5 +24,8 @@ export const config = {
   port: parsed.PORT,
   headless: parsed.PLAYWRIGHT_HEADLESS,
   allowedHosts,
-  sessionTtlMs: parsed.SESSION_TTL_MS
+  sessionTtlMs: parsed.SESSION_TTL_MS,
+  screenshotTtlMs: parsed.SCREENSHOT_TTL_MS,
+  screenshotDir: path.resolve(process.cwd(), parsed.SCREENSHOT_DIR),
+  publicBaseUrl: parsed.PUBLIC_BASE_URL ?? `http://localhost:${parsed.PORT}`
 };
